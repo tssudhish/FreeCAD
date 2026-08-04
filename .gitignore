@@ -74,3 +74,15 @@ tsupdate_stdout.log
 # pixi environments
 *.egg-info
 .pixi
+/graphify-out/*
+/Output_Models/*.stl
+/Output_Models/*.step
+/Output_Models/*.FCStd
+/Output_Models/*.FCBak*
+
+
+*.stl
+*.step
+*.FCStd
+*.FCBak*
+*.gcode
