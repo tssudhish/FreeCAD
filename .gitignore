@@ -86,3 +86,4 @@ tsupdate_stdout.log
 *.FCStd
 *.FCBak*
 *.gcode
+pixi.lock
