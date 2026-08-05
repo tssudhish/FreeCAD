@@ -2,7 +2,7 @@ import os
 import FreeCAD as App
 import Part
 
-print("Executing Complete Airbus A380 1:80 Scale Assembly...")
+print("Executing Complete Airbus A380 1:80 Scale Assembly Generation...")
 
 doc_name = "Airbus_A380_1to80"
 if doc_name in App.listDocuments():
@@ -17,35 +17,35 @@ MAIN_DECK_WIDTH = 89.25         # 7.14 m full scale
 UPPER_DECK_WIDTH = 73.25        # 5.86 m full scale
 DECK_SEPARATION = 36.25         # 2.90 m full scale
 TOTAL_AIRCRAFT_HEIGHT = 301.125 # 24.09 m full scale
+WINGSPAN = 996.88               # 79.75 m full scale
 Z_GROUND = -60.20
 
-# 1. OVOID (DOUBLE-BUBBLE) FUSELAGE PROFILE WIRE
+# 1. FUSELAGE OVOID (DOUBLE-BUBBLE) CROSS-SECTION GENERATOR
 def make_ovoid_wire(x, total_height, main_width, upper_width, z_center):
-    h = max(total_height, 0.1)
-    w_m = max(main_width / 2.0, 0.05)
-    w_u = max(upper_width / 2.0, 0.05)
+    h = max(total_height, 0.5)
+    w_m = max(main_width / 2.0, 0.25)
+    w_u = max(upper_width / 2.0, 0.25)
+    d_sep = DECK_SEPARATION * min(h / MAX_EXTERIOR_HEIGHT, 1.0)
     pts_norm = [
-        ( 0.0,    z_center + h*0.50),
-        ( w_u*0.75, z_center + h*0.42),
-        ( w_u,     z_center + DECK_SEPARATION*0.5),
+        ( 0.0,            z_center + h * 0.50),
+        ( w_u * 0.75,     z_center + h * 0.42),
+        ( w_u,            z_center + d_sep * 0.5),
         ( (w_m+w_u)*0.48, z_center),
-        ( w_m,     z_center - DECK_SEPARATION*0.5),
-        ( w_m*0.75, z_center - h*0.42),
-        ( 0.0,    z_center - h*0.50),
-        (-w_m*0.75, z_center - h*0.42),
-        (-w_m,     z_center - DECK_SEPARATION*0.5),
+        ( w_m,            z_center - d_sep * 0.5),
+        ( w_m * 0.75,     z_center - h * 0.42),
+        ( 0.0,            z_center - h * 0.50),
+        (-w_m * 0.75,     z_center - h * 0.42),
+        (-w_m,            z_center - d_sep * 0.5),
         (-(w_m+w_u)*0.48, z_center),
-        (-w_u,     z_center + DECK_SEPARATION*0.5),
-        (-w_u*0.75, z_center + h*0.42),
-        ( 0.0,    z_center + h*0.50)
+        (-w_u,            z_center + d_sep * 0.5),
+        (-w_u * 0.75,     z_center + h * 0.42)
     ]
     vecs = [App.Vector(x, py, pz) for py, pz in pts_norm]
     bspline = Part.BSplineCurve()
-    bspline.makeC1Continuous()
-    bspline.interpolate(vecs)
+    bspline.interpolate(vecs, True)
     return Part.Wire([bspline.toShape()])
 
-# 2. AIRFOIL WIRES
+# 2. AIRFOIL GENERATORS (TRANSONIC / NACA AIRFOILS)
 def make_airfoil_xy(x_lead, y, z_center, chord, thickness_factor=0.11):
     pts_norm = [
         (0.000, 0.000), (0.025, 0.30), (0.075, 0.46), (0.150, 0.54),
@@ -56,8 +56,7 @@ def make_airfoil_xy(x_lead, y, z_center, chord, thickness_factor=0.11):
     ]
     vecs = [App.Vector(x_lead + xn * chord, y, z_center + zn * chord * thickness_factor) for xn, zn in pts_norm]
     bspline = Part.BSplineCurve()
-    bspline.makeC1Continuous()
-    bspline.interpolate(vecs)
+    bspline.interpolate(vecs, False)
     return Part.Wire([bspline.toShape()])
 
 def make_airfoil_xz(x_lead, y_off, z_lead, chord, thickness_factor=0.10):
@@ -70,11 +69,10 @@ def make_airfoil_xz(x_lead, y_off, z_lead, chord, thickness_factor=0.10):
     ]
     vecs = [App.Vector(x_lead + xn * chord, y_off + zn * chord * thickness_factor, z_lead) for xn, zn in pts_norm]
     bspline = Part.BSplineCurve()
-    bspline.makeC1Continuous()
-    bspline.interpolate(vecs)
+    bspline.interpolate(vecs, False)
     return Part.Wire([bspline.toShape()])
 
-# FUSELAGE & BELLY FAIRING
+# 3. FUSELAGE LOFTING & BELLY FAIRING
 fuse_specs = [
     (0.0,    2.0,   2.0,   1.8, -10.0),
     (12.0,  20.0,  18.0,  15.0,  -8.0),
@@ -100,12 +98,21 @@ belly_specs = [
     (550.0,  45.0, 16.0, -16.0),
     (590.0,  12.0,  8.0, -13.0)
 ]
-belly_wires = [Part.Wire([Part.Ellipse(App.Vector(x_b, 0, z_b), App.Vector(0, w_b/2.0, 0), App.Vector(0, 0, h_b/2.0)).toShape()]) for x_b, w_b, h_b, z_b in belly_specs]
+belly_wires = []
+for x_b, w_b, h_b, z_b in belly_specs:
+    e = Part.Ellipse()
+    e.Center = App.Vector(x_b, 0, z_b)
+    e.MajorRadius = max(w_b, h_b) / 2.0
+    e.MinorRadius = min(w_b, h_b) / 2.0
+    e.Axis = App.Vector(1, 0, 0)
+    belly_wires.append(Part.Wire([e.toShape()]))
+
 belly_fairing = Part.makeLoft(belly_wires, True)
 
-# GULL WINGS
+# 4. GULL WINGS WITH ORIENTATION CONSISTENCY
+# Right wing root (+Y) to tip (+Y)
 wing_stations_right = [
-    (  2.0,   300.0, -16.0, 230.0, 0.13),
+    (  0.0,   300.0, -16.0, 230.0, 0.13),
     ( 44.625, 328.0, -14.0, 210.0, 0.12),
     (100.0,   372.0,  -4.0, 182.0, 0.11),
     (156.25,  412.0,   6.0, 160.0, 0.11),
@@ -114,25 +121,42 @@ wing_stations_right = [
     (498.4,   616.0,  38.5,  35.0, 0.08)
 ]
 r_wing = Part.makeLoft([make_airfoil_xy(x, y, z, c, t) for y, x, z, c, t in wing_stations_right], True)
+
+# Left wing tip (-Y) to root (-Y) using reversed station ordering
 l_wing = Part.makeLoft([make_airfoil_xy(x, -y, z, c, t) for y, x, z, c, t in reversed(wing_stations_right)], True)
 
-def make_winglet(y_sign):
+# 5. DUAL-ENDED WINGTIP FENCES (UPPER & LOWER EXTENSIONS)
+def make_dual_wingtip_fence(y_sign):
     y_pos = 498.4 * y_sign
-    pts = [
-        App.Vector(616.0, y_pos, 30.0),
-        App.Vector(651.0, y_pos, 30.0),
-        App.Vector(645.0, y_pos + 2.0*y_sign, 68.0),
-        App.Vector(628.0, y_pos + 2.0*y_sign, 68.0),
-        App.Vector(616.0, y_pos, 30.0)
+    thickness = 1.5 * y_sign
+    z_tip = 38.5
+    
+    upper_pts = [
+        App.Vector(614.0, y_pos, z_tip),
+        App.Vector(651.0, y_pos, z_tip),
+        App.Vector(646.0, y_pos + 1.2 * y_sign, z_tip + 33.5),
+        App.Vector(626.0, y_pos + 1.2 * y_sign, z_tip + 33.5),
+        App.Vector(614.0, y_pos, z_tip)
     ]
-    poly = Part.makePolygon(pts)
-    face = Part.Face(poly)
-    return face.extrude(App.Vector(0, 1.5*y_sign, 0))
+    face_u = Part.Face(Part.makePolygon(upper_pts))
+    solid_u = face_u.extrude(App.Vector(0, thickness, 0))
+    
+    lower_pts = [
+        App.Vector(614.0, y_pos, z_tip),
+        App.Vector(651.0, y_pos, z_tip),
+        App.Vector(648.0, y_pos - 0.5 * y_sign, z_tip - 16.5),
+        App.Vector(620.0, y_pos - 0.5 * y_sign, z_tip - 16.5),
+        App.Vector(614.0, y_pos, z_tip)
+    ]
+    face_l = Part.Face(Part.makePolygon(lower_pts))
+    solid_l = face_l.extrude(App.Vector(0, thickness, 0))
+    
+    return solid_u.fuse(solid_l)
 
-winglet_r = make_winglet(1)
-winglet_l = make_winglet(-1)
+winglet_r = make_dual_wingtip_fence(1)
+winglet_l = make_dual_wingtip_fence(-1)
 
-# FLAP TRACK CANOES
+# 6. FLAP TRACK CANOES (3 PER WING UNDERSIDE)
 def make_flap_canoe(x_lead, y_pos, z_wing, length, max_diam):
     r = max_diam / 2.0
     x_mid = x_lead + length * 0.4
@@ -156,7 +180,7 @@ canoes = [
     make_flap_canoe(550.0, -330.0,  22.0, 65.0,  8.0)
 ]
 
-# STABILIZERS
+# 7. EMPENNAGE (VERTICAL TAILFIN & HORIZONTAL STABILIZERS)
 vtail_stations = [
     ( 30.0,   650.0, 0.0, 180.0, 0.10),
     (100.0,   705.0, 0.0, 125.0, 0.09),
@@ -166,7 +190,7 @@ vtail_stations = [
 vtail = Part.makeLoft([make_airfoil_xz(x, y, z, c, t) for z, x, y, c, t in vtail_stations], True)
 
 htail_stations_right = [
-    (  2.0, 740.0, 15.0, 110.0, 0.09),
+    (  0.0, 740.0, 15.0, 110.0, 0.09),
     ( 60.0, 768.0, 18.0,  86.0, 0.08),
     (130.0, 800.0, 22.0,  58.0, 0.08),
     (190.0, 828.0, 25.5,  35.0, 0.07)
@@ -174,7 +198,7 @@ htail_stations_right = [
 r_htail = Part.makeLoft([make_airfoil_xy(x, y, z, c, t) for y, x, z, c, t in htail_stations_right], True)
 l_htail = Part.makeLoft([make_airfoil_xy(x, -y, z, c, t) for y, x, z, c, t in reversed(htail_stations_right)], True)
 
-# ENGINES & PYLONS
+# 8. PROPULSION (4 TURBOFAN ENGINES WITH PYLONS & EXHAUST CONES)
 def make_engine(x_center, y_pos, z_center, wing_z):
     x_start = x_center - 36.25
     x_end = x_center + 36.25
@@ -189,11 +213,16 @@ def make_engine(x_center, y_pos, z_center, wing_z):
     ]
     n_wires = [Part.Wire([Part.makeCircle(r_n, App.Vector(x_n, y_pos, z_center), App.Vector(1, 0, 0))]) for x_n, r_n in nacelle_specs]
     nacelle = Part.makeLoft(n_wires, True)
+    
+    fan_disk = Part.makeCylinder(r_fan - 1.0, 2.0, App.Vector(x_start + 1.0, y_pos, z_center), App.Vector(1, 0, 0))
+    fan_hub = Part.makeCone(4.0, 0.5, 6.0, App.Vector(x_start + 1.0, y_pos, z_center), App.Vector(1, 0, 0))
     exhaust_cone = Part.makeCone(12.0, 1.0, 20.0, App.Vector(x_end - 8.0, y_pos, z_center), App.Vector(1, 0, 0))
+    
     pylon_height = wing_z - z_center + 6.0
     pylon_box = Part.makeBox(48.0, 3.5, pylon_height)
     pylon_box.translate(App.Vector(x_start + 10.0, y_pos - 1.75, z_center + r_max - 4.0))
-    return Part.makeCompound([nacelle, exhaust_cone, pylon_box])
+    
+    return Part.makeCompound([nacelle, fan_disk, fan_hub, exhaust_cone, pylon_box])
 
 engines = [
     make_engine(370.0,  156.25, -22.0,   6.0),
@@ -202,7 +231,7 @@ engines = [
     make_engine(450.0, -287.5,  -10.0,  18.0)
 ]
 
-# LANDING GEAR ASSEMBLY (22 WHEELS TOTAL)
+# 9. LANDING GEAR ASSEMBLY (22 WHEELS TOTAL: 2 NLG, 8 WLG, 12 BLG)
 def make_wheel(x, y, z):
     return Part.makeCylinder(8.89, 6.6, App.Vector(x, y - 3.3, z), App.Vector(0, 1, 0))
 
@@ -238,8 +267,22 @@ landing_gears = [
     make_blg_bogie(460.0, 38.0), make_blg_bogie(460.0, -38.0)
 ]
 
-# CREATE COMPOUND FOR CLEAN NON-DESTRUCTIVE CAD ASSEMBLY & EXPORT
-all_shapes = [fuselage, belly_fairing, r_wing, l_wing, winglet_r, winglet_l, vtail, r_htail, l_htail] + canoes + engines + landing_gears
+# 10. SEAMLESS AIRFRAME FUSION & ASSEMBLY COMPOUND
+airframe_components = [fuselage, r_wing, l_wing, winglet_r, winglet_l, vtail, r_htail, l_htail, belly_fairing]
+airframe_solid = airframe_components[0]
+for comp in airframe_components[1:]:
+    if comp.Volume < 0:
+        comp.reverse()
+    try:
+        fused = airframe_solid.fuse(comp)
+        if fused.isValid():
+            airframe_solid = fused
+        else:
+            airframe_solid = Part.makeCompound([airframe_solid, comp])
+    except Exception:
+        airframe_solid = Part.makeCompound([airframe_solid, comp])
+
+all_shapes = [airframe_solid] + canoes + engines + landing_gears
 compound_shape = Part.makeCompound(all_shapes)
 
 model_obj = doc.addObject("Part::Feature", "Airbus_A380_1to80_Complete")
@@ -249,9 +292,9 @@ doc.recompute()
 bbox = compound_shape.BoundBox
 print("==================================================")
 print("AIRBUS A380-800 1:80 MODEL GENERATION SUCCESSFUL!")
-print(f"Total Bounding Box Length (X): {bbox.XLength:.2f} mm (Target: {OVERALL_LENGTH:.2f} mm / {OVERALL_LENGTH/10.0:.2f} cm)")
-print(f"Total Bounding Box Span   (Y): {bbox.YLength:.2f} mm (Target: ~996.88 mm / {996.88/10.0:.2f} cm)")
-print(f"Total Bounding Box Height (Z): {bbox.ZLength:.2f} mm (Target: {TOTAL_AIRCRAFT_HEIGHT:.2f} mm / {TOTAL_AIRCRAFT_HEIGHT/10.0:.2f} cm)")
+print(f"Total Bounding Box Length (X): {bbox.XLength:.2f} mm (Target: {OVERALL_LENGTH:.2f} mm)")
+print(f"Total Bounding Box Span   (Y): {bbox.YLength:.2f} mm (Target: ~{WINGSPAN:.2f} mm)")
+print(f"Total Bounding Box Height (Z): {bbox.ZLength:.2f} mm (Target: {TOTAL_AIRCRAFT_HEIGHT:.2f} mm)")
 print("==================================================")
 
 output_dir = r"c:\Users\Sudhish\OneDrive\Desktop\code\dev\FreeCAD-src\Output_Models"
