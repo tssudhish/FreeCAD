@@ -148,4 +148,29 @@ TEST(CoordinateSystem, TestSetPlacement)
     EXPECT_EQ(plm.inverse().isSame(disT, 1e-15), true);
 }
 
+TEST(CoordinateSystem, TestSetAxisSimple)
+{
+    Base::CoordinateSystem cs;
+    Base::Axis axis(Base::Vector3d(1, 1, 1), Base::Vector3d(0, 0, 1));
+    cs.setAxis(axis);
+
+    EXPECT_EQ(cs.getPosition(), Base::Vector3d(1, 1, 1));
+    EXPECT_EQ(cs.getZDirection(), Base::Vector3d(0, 0, 1));
+    EXPECT_EQ(cs.getXDirection(), Base::Vector3d(1, 0, 0));
+    EXPECT_EQ(cs.getYDirection(), Base::Vector3d(0, 1, 0));
+}
+
+TEST(CoordinateSystem, TestSetAxesVectors)
+{
+    Base::CoordinateSystem cs;
+    Base::Vector3d n(0, 0, 1);
+    Base::Vector3d xd(1, 0, 0);
+    cs.setAxes(n, xd);
+
+    EXPECT_EQ(cs.getXDirection(), Base::Vector3d(1, 0, 0));
+    EXPECT_EQ(cs.getYDirection(), Base::Vector3d(0, 1, 0));
+    EXPECT_EQ(cs.getZDirection(), Base::Vector3d(0, 0, 1));
+}
+
 // NOLINTEND
+
