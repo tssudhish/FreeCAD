@@ -87,3 +87,7 @@ tsupdate_stdout.log
 *.FCBak*
 *.gcode
 pixi.lock
+coverage*
+*.log
+LastCoverageResults.log
+scratch/*
