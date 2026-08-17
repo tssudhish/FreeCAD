@@ -157,6 +157,21 @@ TEST_F(FileInfoTest, TestCopyFile)
     EXPECT_TRUE(copy.deleteFile());
 }
 
+TEST_F(FileInfoTest, TestExtensions)
+{
+    Base::FileInfo file_with_multiple_ext("test.tar.gz");
+    EXPECT_EQ(file_with_multiple_ext.extension(), "gz");
+    EXPECT_EQ(file_with_multiple_ext.completeExtension(), "tar.gz");
+
+    EXPECT_TRUE(file_with_multiple_ext.hasExtension("gz"));
+    EXPECT_TRUE(file_with_multiple_ext.hasExtension("GZ"));
+    EXPECT_FALSE(file_with_multiple_ext.hasExtension("tar"));
+
+    EXPECT_TRUE(file_with_multiple_ext.hasExtension({"tar", "gz", "zip"}));
+    EXPECT_TRUE(file_with_multiple_ext.hasExtension({"GZ", "ZIP"}));
+    EXPECT_FALSE(file_with_multiple_ext.hasExtension({"tar", "zip"}));
+}
+
 // Tests for pathToString / stringToPath UTF-8 round-trip (PR #28222)
 
 class FileInfoPathConversionTest: public ::testing::Test
