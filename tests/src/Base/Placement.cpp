@@ -213,3 +213,35 @@ TEST(Placement, TestSclerp)
     EXPECT_EQ(plm6.getRotation().isSame(Base::Rotation(1, 1, 0, 0), epsilon), true);
     EXPECT_EQ(plm6.getPosition().IsEqual(pos, epsilon), true);
 }
+
+TEST(Placement, TestToString)
+{
+    Base::Placement plm(Base::Vector3d(1, 2, 3), Base::Rotation(0, 0, 0, 1));
+    std::string str = plm.toString();
+    EXPECT_FALSE(str.empty());
+}
+
+TEST(Placement, TestInverseConst)
+{
+    Base::Placement plm(Base::Vector3d(1, 2, 3), Base::Rotation(1, 0, 0, 0));
+    Base::Placement inv = plm.inverse();
+    
+    // original remains same
+    EXPECT_EQ(plm.getPosition(), Base::Vector3d(1, 2, 3));
+    
+    Base::Placement ident = plm * inv;
+    EXPECT_TRUE(ident.isIdentity());
+    
+    EXPECT_TRUE(plm != inv);
+}
+
+TEST(Placement, TestMatrixConversion)
+{
+    Base::Placement plm(Base::Vector3d(1, 2, 3), Base::Rotation(1, 0, 0, 0));
+    Base::Matrix4D mat = plm.toMatrix();
+    
+    Base::Placement plm2;
+    plm2.fromMatrix(mat);
+    EXPECT_TRUE(plm.isSame(plm2));
+}
+
