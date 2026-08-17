@@ -55,3 +55,17 @@ TEST(Uuid, CreateUuidUniquenessSmoke)
 
     EXPECT_EQ(ids.size(), 512u);
 }
+
+TEST(Uuid, SetValueRejectsInvalidVariantAndVersion)
+{
+    Base::Uuid id;
+
+    // 550e8400-e29b-41d4-a716-446655440000 has version=4, variant=a (valid)
+    
+    // Rejects non-RFC4122 variant: index 19 is '1' (binary 0001) instead of 'a'/'8'/'9'/'b' (binary 10xx)
+    EXPECT_THROW(id.setValue("550e8400-e29b-41d4-1716-446655440000"), std::runtime_error);
+
+    // Rejects Nil / version 0: index 14 is '0' (version=0)
+    EXPECT_THROW(id.setValue("550e8400-e29b-01d4-a716-446655440000"), std::runtime_error);
+}
+
