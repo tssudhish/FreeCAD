@@ -91,4 +91,16 @@ TEST(Base64, oneEqualsSignPadding)
     ASSERT_EQ(rest2_decoded, rest2_original);
 }
 
+TEST(Base64, decodeInvalidCharacters)
+{
+    // A space ' ' is in base64_decode_table as -2 (invalid)
+    // A character like '*' is in base64_decode_table as -1 (invalid)
+    std::string invalid_str = "YWJj*";
+    std::string decoded = base64_decode(invalid_str);
+    
+    // The decoding loop breaks when it encounters an invalid character,
+    // decoding only up to that point. So "YWJj" should decode to "abc".
+    ASSERT_EQ(decoded, "abc");
+}
+
 // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
