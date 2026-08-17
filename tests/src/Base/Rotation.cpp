@@ -74,7 +74,48 @@ TEST(Rotation, TestRotationDecompose)
     mat.setCol(1, Base::Vector3d {1, 1, 0});
     mat.setCol(2, Base::Vector3d {0, 0, 1});
 
-    // decompose rotation part
+    // Decompose rotation part
     EXPECT_TRUE(Base::Rotation {mat}.isIdentity());
 }
+
+TEST(Rotation, EulerSequenceNameConversion)
+{
+    EXPECT_STREQ(Base::Rotation::eulerSequenceName(Base::Rotation::YawPitchRoll), "YawPitchRoll");
+    EXPECT_STREQ(Base::Rotation::eulerSequenceName(Base::Rotation::EulerAngles), "Euler");
+    
+    EXPECT_EQ(Base::Rotation::eulerSequenceFromName("YawPitchRoll"), Base::Rotation::YawPitchRoll);
+    EXPECT_EQ(Base::Rotation::eulerSequenceFromName("Euler"), Base::Rotation::EulerAngles);
+    EXPECT_EQ(Base::Rotation::eulerSequenceFromName("InvalidName"), Base::Rotation::Invalid);
+}
+
+TEST(Rotation, OperatorsAndInverse)
+{
+    const double pi = std::acos(-1.0);
+    Base::Rotation rot(Base::Vector3d(0, 0, 1), pi / 2.0); // 90 deg about Z
+    EXPECT_FALSE(rot.isIdentity());
+
+    Base::Rotation inv = rot.inverse();
+    Base::Rotation identity = rot * inv;
+    EXPECT_TRUE(identity.isIdentity(1e-7));
+
+    Base::Rotation rot2(Base::Vector3d(0, 0, 1), pi / 2.0);
+    EXPECT_TRUE(rot == rot2);
+    EXPECT_FALSE(rot != rot2);
+    EXPECT_TRUE(rot != inv);
+}
+
+TEST(Rotation, MultVec)
+{
+    const double pi = std::acos(-1.0);
+    Base::Rotation rot(Base::Vector3d(0, 0, 1), pi / 2.0); // 90 deg about Z
+    Base::Vector3d v(1, 0, 0);
+    Base::Vector3d res = rot.multVec(v);
+    
+    // Rotating (1,0,0) 90 deg about Z should give (0,1,0)
+    EXPECT_NEAR(res.x, 0.0, 1e-7);
+    EXPECT_NEAR(res.y, 1.0, 1e-7);
+    EXPECT_NEAR(res.z, 0.0, 1e-7);
+}
+
 // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+
