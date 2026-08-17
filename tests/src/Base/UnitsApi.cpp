@@ -142,3 +142,29 @@ TEST(UnitsApi_toUnicodeSuperscript, minus_inside_multi_digit_exponent)
 {
     EXPECT_EQ(UnitsApi::toUnicodeSuperscript("2^-31-2"), "2\xe2\x81\xbb\xc2\xb3\xc2\xb9-2");  // 2⁻³¹-2
 }
+
+TEST(UnitsApiTest, DecimalPrecisionAndDenominator)
+{
+    int origDecimals = UnitsApi::getDecimals();
+    int origDenominator = UnitsApi::getDenominator();
+
+    UnitsApi::setDecimals(4);
+    EXPECT_EQ(UnitsApi::getDecimals(), 4);
+
+    UnitsApi::setDenominator(8);
+    EXPECT_EQ(UnitsApi::getDenominator(), 8);
+
+    // restore
+    UnitsApi::setDecimals(origDecimals);
+    UnitsApi::setDenominator(origDenominator);
+}
+
+TEST(UnitsApiTest, SchemasList)
+{
+    std::vector<std::string> names = UnitsApi::getNames();
+    EXPECT_FALSE(names.empty());
+    
+    std::vector<std::string> descriptions = UnitsApi::getDescriptions();
+    EXPECT_EQ(names.size(), descriptions.size());
+}
+
