@@ -81,3 +81,34 @@ TEST_F(Axis, TestMult)
     EXPECT_EQ(axis.getBase(), Base::Vector3d(1, 1, 0));
     EXPECT_EQ(axis.getDirection(), Base::Vector3d(0, 0, -1));
 }
+
+TEST_F(Axis, TestComparison)
+{
+    Base::Axis a1(Base::Vector3d(0, 0, 1), Base::Vector3d(1, 0, 0));
+    Base::Axis a2(Base::Vector3d(0, 0, 1), Base::Vector3d(1, 0, 0));
+    Base::Axis a3(Base::Vector3d(0, 0, 2), Base::Vector3d(1, 0, 0));
+    Base::Axis a4(Base::Vector3d(0, 0, 1), Base::Vector3d(0, 1, 0));
+
+    EXPECT_TRUE(a1 == a2);
+    EXPECT_FALSE(a1 == a3);
+    EXPECT_FALSE(a1 == a4);
+
+    EXPECT_FALSE(a1 != a2);
+    EXPECT_TRUE(a1 != a3);
+    EXPECT_TRUE(a1 != a4);
+}
+
+TEST_F(Axis, TestMultConst)
+{
+    Base::Axis axis(Base::Vector3d(0, 0, 1), Base::Vector3d(0, 0, 1));
+    Base::Placement plm(Base::Vector3d(1, 1, 1), Base::Rotation(1, 0, 0, 0));
+    Base::Axis res = axis * plm;
+
+    EXPECT_EQ(res.getBase(), Base::Vector3d(1, 1, 0));
+    EXPECT_EQ(res.getDirection(), Base::Vector3d(0, 0, -1));
+    
+    // Original axis remains unchanged
+    EXPECT_EQ(axis.getBase(), Base::Vector3d(0, 0, 1));
+    EXPECT_EQ(axis.getDirection(), Base::Vector3d(0, 0, 1));
+}
+
