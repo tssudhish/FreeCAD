@@ -496,7 +496,7 @@ class AIAgentPanel(QtWidgets.QDockWidget):
             }
             
             req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=180) as r:
                 res_data = json.loads(r.read().decode('utf-8'))
                 code = res_data.get("response", "")
                 self.log_message.emit(f"Received response from Ollama. Generated code:\n{code}")
