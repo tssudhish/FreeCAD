@@ -94,6 +94,20 @@ class FreeCADSocketServer(QtCore.QObject):
 
 _socket_server = None
 
+def extract_python_code(text):
+    import re
+    # Try to find all content between ```python and ```
+    blocks = re.findall(r"```python(.*?)```", text, re.DOTALL)
+    if blocks:
+        return "\n".join(blocks).strip()
+    
+    # Fallback to any generic ``` blocks
+    blocks = re.findall(r"```(.*?)```", text, re.DOTALL)
+    if blocks:
+        return "\n".join(blocks).strip()
+        
+    return text.strip()
+
 class AIAgentPanel(QtWidgets.QDockWidget):
     code_generated = QtCore.Signal(str)
     error_occurred = QtCore.Signal(str)
@@ -448,15 +462,8 @@ class AIAgentPanel(QtWidgets.QDockWidget):
             code = response.text
             self.log_message.emit(f"Generated code:\n{code}")
             
-            # Clean up markdown if the LLM still returns it
-            if code.startswith("```python"):
-                code = code[9:]
-            if code.startswith("```"):
-                code = code[3:]
-            if code.endswith("```"):
-                code = code[:-3]
-                
-            code = code.strip()
+            # Extract and clean up code from the response
+            code = extract_python_code(code)
             
             self.code_generated.emit(code)
         except Exception as e:
@@ -501,15 +508,8 @@ class AIAgentPanel(QtWidgets.QDockWidget):
                 code = res_data.get("response", "")
                 self.log_message.emit(f"Received response from Ollama. Generated code:\n{code}")
                 
-                # Clean up markdown if the LLM still returns it
-                if code.startswith("```python"):
-                    code = code[9:]
-                if code.startswith("```"):
-                    code = code[3:]
-                if code.endswith("```"):
-                    code = code[:-3]
-                    
-                code = code.strip()
+                # Extract and clean up code from the response
+                code = extract_python_code(code)
                 self.code_generated.emit(code)
                 
         except urllib.error.URLError as e:
