@@ -207,7 +207,8 @@ class AIAgentPanel(QtWidgets.QDockWidget):
             "gemini-2.5-flash",
             "gemini-2.5-pro",
             "gemini-1.5-flash",
-            "gemini-1.5-pro"
+            "gemini-1.5-pro",
+            "Ollama (local)"
         ])
         self.model_selector.currentIndexChanged.connect(self.on_model_changed)
         
@@ -323,9 +324,13 @@ class AIAgentPanel(QtWidgets.QDockWidget):
             self.append_system_message("Error: Gemini client failed to initialize. Gemini API Key is missing.")
 
     def on_model_changed(self):
+        selected_model = self.model_selector.currentText()
+        if selected_model == "Ollama (local)":
+            self.append_system_message("Switched to local Ollama. Ensure Ollama is running ('ollama serve').")
+            return
+
         if not self.client:
             return
-        selected_model = self.model_selector.currentText()
         self.append_system_message(f"Switching to model: {selected_model}...")
         try:
             self.chat_session = self.client.chats.create(
@@ -410,9 +415,11 @@ class AIAgentPanel(QtWidgets.QDockWidget):
             self.append_agent_message(f"Execution Error: {str(e)}")
 
     def send_message(self):
-        if not self.client or not hasattr(self, 'chat_session') or not self.chat_session:
-            self.append_system_message("Error: LLM chat session not initialized.")
-            return
+        selected_model = self.model_selector.currentText()
+        if selected_model != "Ollama (local)":
+            if not self.client or not hasattr(self, 'chat_session') or not self.chat_session:
+                self.append_system_message("Error: LLM chat session not initialized.")
+                return
             
         prompt = self.input_field.text()
         if not prompt:
@@ -429,6 +436,11 @@ class AIAgentPanel(QtWidgets.QDockWidget):
 
     def call_llm(self, prompt):
         self.log_message.emit("call_llm thread started.")
+        selected_model = self.model_selector.currentText()
+        if selected_model == "Ollama (local)":
+            self.call_ollama(prompt)
+            return
+
         try:
             self.log_message.emit("Sending prompt to Gemini...")
             response = self.chat_session.send_message(prompt)
@@ -449,3 +461,58 @@ class AIAgentPanel(QtWidgets.QDockWidget):
             self.code_generated.emit(code)
         except Exception as e:
             self.error_occurred.emit(str(e))
+
+    def call_ollama(self, prompt):
+        import urllib.request
+        import urllib.error
+        import json
+        
+        self.log_message.emit("Sending prompt to local Ollama...")
+        try:
+            # 1. Discover models installed in Ollama
+            model_name = "gemma2"  # fallback default
+            try:
+                with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3) as r:
+                    data = json.loads(r.read().decode('utf-8'))
+                    if data.get("models"):
+                        model_name = data["models"][0]["name"]
+                        self.log_message.emit(f"Auto-detected local Ollama model: {model_name}")
+            except Exception:
+                self.log_message.emit("Could not auto-detect Ollama models, using fallback 'gemma2'")
+                
+            # 2. Make generation request
+            url = "http://localhost:11434/api/generate"
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "model": model_name,
+                "prompt": prompt,
+                "system": (
+                    "You are a helpful AI assistant integrated into FreeCAD.\n"
+                    "Your task is to generate Python code using the FreeCAD API to fulfill the user's request.\n"
+                    "You can utilize any of FreeCAD's workbenches (e.g. Part, PartDesign, Sketcher, Draft, BIM).\n"
+                    "Only return valid Python code that can be executed directly via `exec()`. Do not include markdown code blocks, just the raw code."
+                ),
+                "stream": False
+            }
+            
+            req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
+            with urllib.request.urlopen(req, timeout=30) as r:
+                res_data = json.loads(r.read().decode('utf-8'))
+                code = res_data.get("response", "")
+                self.log_message.emit(f"Received response from Ollama. Generated code:\n{code}")
+                
+                # Clean up markdown if the LLM still returns it
+                if code.startswith("```python"):
+                    code = code[9:]
+                if code.startswith("```"):
+                    code = code[3:]
+                if code.endswith("```"):
+                    code = code[:-3]
+                    
+                code = code.strip()
+                self.code_generated.emit(code)
+                
+        except urllib.error.URLError as e:
+            self.error_occurred.emit(f"Ollama connection failed: {e.reason}. Make sure Ollama is running ('ollama serve').")
+        except Exception as e:
+            self.error_occurred.emit(f"Ollama error: {str(e)}")
