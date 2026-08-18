@@ -70,3 +70,41 @@ TEST(Reference, TestRefHandle)
     data->unref();
     EXPECT_EQ(data.getRefCount(), 1);
 }
+
+TEST(Reference, TestUnrefNoDelete)
+{
+    Data* raw = new Data();
+    raw->ref();
+    EXPECT_EQ(raw->getRefCount(), 1);
+
+    // Decrement ref count without deleting the object
+    int hasRefs = raw->unrefNoDelete();
+    EXPECT_EQ(hasRefs, 0);
+    EXPECT_EQ(raw->getRefCount(), 0);
+
+    // Clean up manually since unrefNoDelete didn't delete it
+    delete raw;
+}
+
+TEST(Reference, TestHandledAssignmentOperator)
+{
+    Data d1;
+    Data d2;
+    d1.setValue(42);
+    d2.setValue(84);
+
+    d1.ref();
+    EXPECT_EQ(d1.getRefCount(), 1);
+    EXPECT_EQ(d2.getRefCount(), 0);
+
+    // Assigning handled objects must not assign refcount
+    d2 = d1;
+    EXPECT_EQ(d1.getRefCount(), 1);
+    EXPECT_EQ(d2.getRefCount(), 0);
+    
+    // Test reference self-assignment
+    Base::Reference<Data> ref1(new Data);
+    ref1 = ref1;
+    EXPECT_EQ(ref1.getRefCount(), 1);
+}
+

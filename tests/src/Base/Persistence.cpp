@@ -32,3 +32,11 @@ TEST(Persistence, ValidateXmlStringReplacesDiscouraged)
     const std::string out = Base::Persistence::validateXMLString(s);
     EXPECT_EQ(out, "x_y");
 }
+
+TEST(Persistence, EncodeAttribute)
+{
+    const std::string s = "<test attr=\"val\" & 'more' > \r\n\t";
+    const std::string out = Base::Persistence::encodeAttribute(s);
+    EXPECT_EQ(out, "&lt;test attr=&quot;val&quot; &amp; &apos;more&apos; &gt; &#13;&#10;&#9;");
+}
+
