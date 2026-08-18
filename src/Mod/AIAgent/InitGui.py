@@ -25,6 +25,7 @@ class AIAgentWorkbench(FreeCADGui.Workbench):
         "  .  ......  .  ",
         "  .          .  ",
         "  ............  ",
+        "                ",
         "                "
         };
         """

@@ -160,6 +160,8 @@ pthreads-win32 = "*"
 
 [pypi-dependencies]
 freecad-stubs = "*"
+google-genai = "*"
+mcp = "*"
 
 ## Qt 6 Configuration Presets
 [target.linux-64.tasks]

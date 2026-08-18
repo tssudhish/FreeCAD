@@ -2,6 +2,14 @@ import FreeCAD
 import FreeCADGui
 from AIAgentPanel import AIAgentPanel
 
+try:
+    from PySide6 import QtCore
+except ImportError:
+    try:
+        from PySide2 import QtCore
+    except ImportError:
+        from PySide import QtCore
+
 class OpenAIAgentPanelCommand:
     def __init__(self):
         self.panel = None
@@ -14,7 +22,7 @@ class OpenAIAgentPanelCommand:
     def Activated(self):
         if not self.panel:
             self.panel = AIAgentPanel()
-        FreeCADGui.getMainWindow().addDockWidget(FreeCADGui.QtCore.Qt.RightDockWidgetArea, self.panel)
+        FreeCADGui.getMainWindow().addDockWidget(QtCore.Qt.RightDockWidgetArea, self.panel)
         self.panel.show()
 
 FreeCADGui.addCommand('AIAgent_OpenPanel', OpenAIAgentPanelCommand())
