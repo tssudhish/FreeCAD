@@ -336,11 +336,39 @@ class AIAgentPanel(QtWidgets.QDockWidget):
         else:
             self.chat_history.clear()
             self.append_system_message("Error: Gemini client failed to initialize. Gemini API Key is missing.")
+            
+        # Trigger local Ollama models discovery in background
+        self.discover_ollama_models()
+
+    def discover_ollama_models(self):
+        import urllib.request
+        import json
+        import threading
+        
+        def run_discovery():
+            try:
+                with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2) as r:
+                    data = json.loads(r.read().decode('utf-8'))
+                    models = [m["name"] for m in data.get("models", [])]
+                    if models:
+                        QtCore.QTimer.singleShot(0, lambda: self.add_ollama_models_to_ui(models))
+            except Exception:
+                pass
+                
+        threading.Thread(target=run_discovery, daemon=True).start()
+
+    def add_ollama_models_to_ui(self, models):
+        self.model_selector.blockSignals(True)
+        for m in models:
+            item_text = f"Ollama: {m}"
+            if self.model_selector.findText(item_text) == -1:
+                self.model_selector.addItem(item_text)
+        self.model_selector.blockSignals(False)
 
     def on_model_changed(self):
         selected_model = self.model_selector.currentText()
-        if selected_model == "Ollama (local)":
-            self.append_system_message("Switched to local Ollama. Ensure Ollama is running ('ollama serve').")
+        if selected_model == "Ollama (local)" or selected_model.startswith("Ollama: "):
+            self.append_system_message(f"Switched to local Ollama model: {selected_model}")
             return
 
         if not self.client:
@@ -430,7 +458,7 @@ class AIAgentPanel(QtWidgets.QDockWidget):
 
     def send_message(self):
         selected_model = self.model_selector.currentText()
-        if selected_model != "Ollama (local)":
+        if selected_model != "Ollama (local)" and not selected_model.startswith("Ollama: "):
             if not self.client or not hasattr(self, 'chat_session') or not self.chat_session:
                 self.append_system_message("Error: LLM chat session not initialized.")
                 return
@@ -451,8 +479,12 @@ class AIAgentPanel(QtWidgets.QDockWidget):
     def call_llm(self, prompt):
         self.log_message.emit("call_llm thread started.")
         selected_model = self.model_selector.currentText()
-        if selected_model == "Ollama (local)":
-            self.call_ollama(prompt)
+        if selected_model == "Ollama (local)" or selected_model.startswith("Ollama: "):
+            # Extract actual model name
+            actual_model = "gemma2"
+            if selected_model.startswith("Ollama: "):
+                actual_model = selected_model[8:]
+            self.call_ollama(prompt, actual_model)
             return
 
         try:
@@ -469,25 +501,24 @@ class AIAgentPanel(QtWidgets.QDockWidget):
         except Exception as e:
             self.error_occurred.emit(str(e))
 
-    def call_ollama(self, prompt):
+    def call_ollama(self, prompt, model_name):
         import urllib.request
         import urllib.error
         import json
         
-        self.log_message.emit("Sending prompt to local Ollama...")
-        try:
-            # 1. Discover models installed in Ollama
-            model_name = "gemma2"  # fallback default
+        # If user selected generic "Ollama (local)", try to auto-detect the first model
+        if model_name == "gemma2" and self.model_selector.currentText() == "Ollama (local)":
             try:
                 with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3) as r:
                     data = json.loads(r.read().decode('utf-8'))
                     if data.get("models"):
                         model_name = data["models"][0]["name"]
-                        self.log_message.emit(f"Auto-detected local Ollama model: {model_name}")
             except Exception:
-                self.log_message.emit("Could not auto-detect Ollama models, using fallback 'gemma2'")
-                
-            # 2. Make generation request
+                pass
+
+        self.log_message.emit(f"Sending prompt to local Ollama ({model_name})...")
+        try:
+            # Make generation request
             url = "http://localhost:11434/api/generate"
             headers = {"Content-Type": "application/json"}
             payload = {
