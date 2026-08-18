@@ -203,13 +203,21 @@ class AIAgentPanel(QtWidgets.QDockWidget):
                 font-size: 10pt;
                 font-weight: bold;
             }
+            QSpinBox#TimeoutSpinner {
+                background-color: #24283b;
+                color: #c0caf5;
+                border: 1px solid #383e5a;
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-size: 10pt;
+            }
         """)
 
         widget = QtWidgets.QWidget()
         widget.setObjectName("MainWidget")
         layout = QtWidgets.QVBoxLayout()
         
-        # Model selector header
+        # Model and Timeout selector header
         model_layout = QtWidgets.QHBoxLayout()
         model_label = QtWidgets.QLabel("Model:")
         model_label.setObjectName("ModelLabel")
@@ -226,8 +234,21 @@ class AIAgentPanel(QtWidgets.QDockWidget):
         ])
         self.model_selector.currentIndexChanged.connect(self.on_model_changed)
         
+        timeout_label = QtWidgets.QLabel("Timeout:")
+        timeout_label.setObjectName("ModelLabel")
+        
+        self.timeout_spinner = QtWidgets.QSpinBox()
+        self.timeout_spinner.setObjectName("TimeoutSpinner")
+        self.timeout_spinner.setRange(5, 600)
+        self.timeout_spinner.setValue(180)
+        self.timeout_spinner.setSuffix("s")
+        self.timeout_spinner.setMinimumWidth(70)
+
         model_layout.addWidget(model_label)
         model_layout.addWidget(self.model_selector)
+        model_layout.addSpacing(10)
+        model_layout.addWidget(timeout_label)
+        model_layout.addWidget(self.timeout_spinner)
         model_layout.addStretch()
         layout.addLayout(model_layout)
         
@@ -516,7 +537,14 @@ class AIAgentPanel(QtWidgets.QDockWidget):
             except Exception:
                 pass
 
-        self.log_message.emit(f"Sending prompt to local Ollama ({model_name})...")
+        # Get timeout value from spinner safely
+        timeout_val = 180
+        try:
+            timeout_val = self.timeout_spinner.value()
+        except Exception:
+            pass
+
+        self.log_message.emit(f"Sending prompt to local Ollama ({model_name}) with {timeout_val}s timeout...")
         try:
             # Make generation request
             url = "http://localhost:11434/api/generate"
@@ -534,7 +562,7 @@ class AIAgentPanel(QtWidgets.QDockWidget):
             }
             
             req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
-            with urllib.request.urlopen(req, timeout=180) as r:
+            with urllib.request.urlopen(req, timeout=timeout_val) as r:
                 res_data = json.loads(r.read().decode('utf-8'))
                 code = res_data.get("response", "")
                 self.log_message.emit(f"Received response from Ollama. Generated code:\n{code}")
