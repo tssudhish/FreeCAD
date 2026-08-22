@@ -121,6 +121,11 @@ class AIAgentPanel(QtWidgets.QDockWidget):
         self.error_occurred.connect(self.handle_error)
         self.log_message.connect(self.handle_log)
         
+        # Command/Prompt history tracking
+        self.prompt_history = []
+        self.history_index = -1
+        self.temp_input = ""
+        
         # Start socket server globally if not already running
         global _socket_server
         if _socket_server is None:
@@ -274,6 +279,7 @@ class AIAgentPanel(QtWidgets.QDockWidget):
         self.input_field.setObjectName("InputField")
         self.input_field.setPlaceholderText("Ask the agent to do something...")
         self.input_field.returnPressed.connect(self.send_message)
+        self.input_field.installEventFilter(self)
         
         self.send_btn = QtWidgets.QPushButton("Send")
         self.send_btn.setObjectName("SendBtn")
@@ -478,6 +484,35 @@ class AIAgentPanel(QtWidgets.QDockWidget):
         except Exception as e:
             self.append_agent_message(f"Execution Error: {str(e)}")
 
+    def eventFilter(self, obj, event):
+        if obj == self.input_field and event.type() == QtCore.QEvent.KeyPress:
+            key = event.key()
+            if key == QtCore.Qt.Key_Up:
+                self.navigate_history(1)
+                return True
+            elif key == QtCore.Qt.Key_Down:
+                self.navigate_history(-1)
+                return True
+        return super().eventFilter(obj, event)
+
+    def navigate_history(self, direction):
+        if not self.prompt_history:
+            return
+            
+        if self.history_index == -1:
+            self.temp_input = self.input_field.text()
+            
+        new_index = self.history_index + direction
+        if new_index >= len(self.prompt_history):
+            self.history_index = len(self.prompt_history) - 1
+        elif new_index < 0:
+            self.history_index = -1
+            self.input_field.setText(self.temp_input)
+        else:
+            self.history_index = new_index
+            list_index = len(self.prompt_history) - 1 - self.history_index
+            self.input_field.setText(self.prompt_history[list_index])
+
     def send_message(self):
         selected_model = self.model_selector.currentText()
         if selected_model != "Ollama (local)" and not selected_model.startswith("Ollama: "):
@@ -488,6 +523,11 @@ class AIAgentPanel(QtWidgets.QDockWidget):
         prompt = self.input_field.text()
         if not prompt:
             return
+            
+        # Store in history if not duplicate of the last entry
+        if not self.prompt_history or self.prompt_history[-1] != prompt:
+            self.prompt_history.append(prompt)
+        self.history_index = -1
             
         self.input_field.clear()
         self.append_user_message(prompt)
