@@ -24,6 +24,18 @@ except ImportError as e:
     print(f"Error importing FreeCAD: {e}", file=sys.stderr)
     sys.exit(1)
 
+# Import other workbenches safely
+WORKBENCHES = {
+    "FreeCAD": App,
+    "Part": Part,
+}
+for name in ["PartDesign", "Sketcher", "ObjectsFem", "Fem", "Mesh", "Draft"]:
+    try:
+        mod = __import__(name)
+        WORKBENCHES[name] = mod
+    except ImportError:
+        pass
+
 # 3. Initialize FastMCP Server
 mcp = FastMCP("FreeCAD Automation Server")
 
@@ -67,11 +79,16 @@ def export_shape(doc_name: str, object_name: str, export_path: str, format_type:
     return f"Successfully exported '{object_name}' to '{export_path}' ({format_type})"
 
 @mcp.tool()
+def list_available_workbenches() -> list:
+    """List all the FreeCAD Python workbenches and modules successfully loaded in this environment."""
+    return list(WORKBENCHES.keys())
+
+@mcp.tool()
 def execute_python_cad_script(python_code: str) -> str:
     """Execute arbitrary FreeCAD Python scripting code safely."""
     try:
-        # Provide App and Part in local scope
-        local_scope = {"App": App, "Part": Part}
+        # Provide loaded workbenches in local scope (including App, Part, PartDesign, Sketcher, Fem, ObjectsFem, etc.)
+        local_scope = WORKBENCHES.copy()
         exec(python_code, local_scope)
         return "Script executed successfully."
     except Exception as e:
@@ -102,6 +119,41 @@ def inspect_document(doc_name: str) -> dict:
         "ObjectCount": len(doc.Objects),
         "Objects": objects_summary
     }
+
+@mcp.tool()
+def create_fem_analysis(doc_name: str, analysis_name: str = "Analysis") -> str:
+    """Create a Finite Element Analysis (FEM) container, add a CalculiX CCX solver, and a solid material."""
+    if "ObjectsFem" not in WORKBENCHES:
+        return "Error: FEM workbench (ObjectsFem module) is not available in the current FreeCAD installation."
+    
+    doc = App.getDocument(doc_name) if doc_name in App.listDocuments() else App.newDocument(doc_name)
+    ObjectsFem = WORKBENCHES["ObjectsFem"]
+    
+    analysis_obj = ObjectsFem.makeAnalysis(doc, analysis_name)
+    solver_obj = ObjectsFem.makeSolverCalculiXCcxTools(doc, "CalculiXSolver")
+    solver_obj.GeometricalNonlinearity = 'linear'
+    solver_obj.ThermoMechSteadyState = True
+    analysis_obj.addObject(solver_obj)
+    
+    material_obj = ObjectsFem.makeMaterialSolid(doc, "SolidMaterial")
+    mat = material_obj.Material
+    mat['Name'] = "Steel-Generic"
+    mat['YoungsModulus'] = "210000 MPa"
+    mat['PoissonRatio'] = "0.30"
+    mat['Density'] = "7900 kg/m^3"
+    material_obj.Material = mat
+    analysis_obj.addObject(material_obj)
+    
+    doc.recompute()
+    return f"Successfully created FEM Analysis '{analysis_name}' with CalculiX solver and Steel-Generic material in document '{doc.Name}'."
+
+@mcp.tool()
+def create_part_design_body(doc_name: str, body_name: str = "Body") -> str:
+    """Create a PartDesign::Body container inside a specified document."""
+    doc = App.getDocument(doc_name) if doc_name in App.listDocuments() else App.newDocument(doc_name)
+    body_obj = doc.addObject("PartDesign::Body", body_name)
+    doc.recompute()
+    return f"Created PartDesign Body '{body_name}' in document '{doc.Name}'"
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
