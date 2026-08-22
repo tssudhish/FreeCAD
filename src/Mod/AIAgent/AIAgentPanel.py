@@ -140,6 +140,7 @@ class AIAgentPanel(QtWidgets.QDockWidget):
 
     def handle_log(self, log_msg):
         FreeCAD.Console.PrintLog(f"AI Agent: {log_msg}\n")
+        self.append_system_message(log_msg)
         
     def initUI(self):
         self.setMinimumWidth(320)
@@ -498,7 +499,7 @@ class AIAgentPanel(QtWidgets.QDockWidget):
         threading.Thread(target=self.call_llm, args=(full_prompt,)).start()
 
     def call_llm(self, prompt):
-        self.log_message.emit("call_llm thread started.")
+        self.log_message.emit("Analyzing context and starting query...")
         selected_model = self.model_selector.currentText()
         if selected_model == "Ollama (local)" or selected_model.startswith("Ollama: "):
             # Extract actual model name
@@ -509,11 +510,11 @@ class AIAgentPanel(QtWidgets.QDockWidget):
             return
 
         try:
-            self.log_message.emit("Sending prompt to Gemini...")
+            self.log_message.emit("Gemini model is thinking...")
             response = self.chat_session.send_message(prompt)
-            self.log_message.emit("Received response from Gemini.")
+            self.log_message.emit("Gemini response received.")
             code = response.text
-            self.log_message.emit(f"Generated code:\n{code}")
+            FreeCAD.Console.PrintLog(f"AI Agent: Generated code:\n{code}\n")
             
             # Extract and clean up code from the response
             code = extract_python_code(code)
@@ -544,7 +545,7 @@ class AIAgentPanel(QtWidgets.QDockWidget):
         except Exception:
             pass
 
-        self.log_message.emit(f"Sending prompt to local Ollama ({model_name}) with {timeout_val}s timeout...")
+        self.log_message.emit(f"Contacting local Ollama model '{model_name}'...")
         try:
             # Make generation request
             url = "http://localhost:11434/api/generate"
@@ -565,7 +566,8 @@ class AIAgentPanel(QtWidgets.QDockWidget):
             with urllib.request.urlopen(req, timeout=timeout_val) as r:
                 res_data = json.loads(r.read().decode('utf-8'))
                 code = res_data.get("response", "")
-                self.log_message.emit(f"Received response from Ollama. Generated code:\n{code}")
+                self.log_message.emit("Ollama response received.")
+                FreeCAD.Console.PrintLog(f"AI Agent: Generated code:\n{code}\n")
                 
                 # Extract and clean up code from the response
                 code = extract_python_code(code)
